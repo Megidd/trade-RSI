@@ -84,8 +84,8 @@ void OnTick()
       if (!HasOpenPosition(ORDER_TYPE_BUY, InpMagic))
       {
           // Send a buy order
-          TradeRequest request = {};
-          TradeResult result = {};
+          MqlTradeRequest  request = {};
+          MqlTradeResult  result = {};
 
           request.action = TRADE_ACTION_DEAL;
           request.symbol = Symbol();
@@ -120,8 +120,8 @@ void OnTick()
        if (!HasOpenPosition(ORDER_TYPE_SELL, InpMagic))
        {
           // Send a sell order
-          TradeRequest request = {};
-          TradeResult result = {};
+          MqlTradeRequest  request = {};
+          MqlTradeResult  result = {};
 
           request.action = TRADE_ACTION_DEAL;
           request.symbol = Symbol();
