@@ -1,7 +1,7 @@
 # Note
 
-Apparently, MetaQuotes saves the `*.mq5` somewhere like this:
+Apparently, MetaQuotes saves the `*.mq5` file somewhere like this:
 
 ```bash
-C:\Users\m3\AppData\Roaming\MetaQuotes\Terminal\<A_LONG_HASH>\MQL5\Experts\trade_RSI.mq5
+C:\Users\<user_name>\AppData\Roaming\MetaQuotes\Terminal\<A_LONG_HASH>\MQL5\Experts\trade_RSI.mq5
 ```
