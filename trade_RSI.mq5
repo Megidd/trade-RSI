@@ -1,173 +1,142 @@
 //+------------------------------------------------------------------+
-//|                                                RSI_Trading_EA.mq5 |
-//|                             Copyright 2025, Your Name or Company |
-//|                                             https://www.example.com |
+//|                                                      ProjectName |
+//|                                      Copyright 2020, CompanyName |
+//|                                       http://www.companyname.net |
 //+------------------------------------------------------------------+
-#property copyright "Copyright 2025, Your Name or Company"
-#property link      "https://www.example.com"
-#property version   "1.00"
-#property description "Simple RSI Overbought/Oversold Trading EA"
+#property copyright   "Copyright 2025, MetaQuotes Ltd."
+#property link        "https://www.mql5.com"
+#property version    "1.00"
+#property description "Simple RSI Trading Strategy"
 
-//--- input parameters
-input int    InpPeriodRSI = 14;     // RSI Period
-input int    InpLevelBuy  = 30;      // RSI Buy Level
-input int    InpLevelSell = 70;      // RSI Sell Level
-input double InpLotSize   = 0.1;     // Trading Lot Size
-input int    InpMagic     = 12345;   // Magic Number
+#include <Trade\Trade.mqh>
 
-//--- indicator handle
-int rsi_handle;
+//--- Input parameters
+input int RSIPeriod = 14;       // Period for RSI calculation
+input int OverboughtLevel = 70; // RSI level to consider as overbought
+input int OversoldLevel = 30;   // RSI level to consider as oversold
+input double TradeVolume = 0.01; // Trade volume in lots
+input int StopLossPoints = 50;  // Stop Loss in points
+input int TakeProfitPoints = 100;// Take Profit in points
+input int MagicNumber = 12345;  // Magic number for the EA
+
+//--- Global instance of the trade class
+CTrade trade;
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
 //+------------------------------------------------------------------+
 int OnInit()
   {
-//--- create RSI indicator handle
-   rsi_handle = iRSI(Symbol(),      // Current symbol
-                     Period(),      // Current timeframe
-                     InpPeriodRSI,  // RSI period
-                     PRICE_CLOSE);  // Price type (Close price)
+//--- Initialize the trade object
+   trade.SetExpertMagicNumber(MagicNumber);
+   trade.SetDeviationInPoints(5); // Slippage control in points
+   trade.SetTypeFilling(ORDER_FILLING_FOK); // Order filling type
 
-//--- check if handle creation failed
-   if(rsi_handle == INVALID_HANDLE)
-     {
-      Print("Failed to create RSI indicator handle. Error code: ", GetLastError());
-      return(INIT_FAILED);
-     }
-
-//---
    return(INIT_SUCCEEDED);
   }
+
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
-//---
+//--- Cleanup if needed
   }
+
 //+------------------------------------------------------------------+
-//| New tick event                                                   |
+//| Expert tick function                                             |
 //+------------------------------------------------------------------+
 void OnTick()
   {
-//--- check for open positions
-   if(PositionsTotal() > 0)
+//--- Get the RSI value
+   double rsiValue = iRSI(Symbol(), Period(), RSIPeriod, PRICE_CLOSE);
+
+//--- Check for sell condition
+   if(rsiValue > OverboughtLevel)
      {
-      // You might add logic here to manage open positions (e.g., close on opposite signal)
-      // For this simple example, we won't open new positions if one is already open.
-      return;
+      //--- Check if there are any open buy positions
+      if(PositionsTotal() > 0)
+        {
+         for(int i = PositionsTotal() - 1; i >= 0; i--)
+           {
+            ulong ticket = PositionGetTicket(i);
+            if(PositionSelectByTicket(ticket))
+              {
+               if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+                 {
+                  //--- Close the buy position
+                  trade.PositionClose(ticket);
+                  Print("Buy position closed due to RSI overbought condition.");
+                 }
+              }
+           }
+        }
+
+      //--- Open a sell position if no sell position is open
+      if(PositionsTotal() == 0 || !IsExistingPosition(POSITION_TYPE_SELL))
+        {
+         double stopLoss = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_BID) + StopLossPoints * _Point, _Digits);
+         double takeProfit = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_BID) - TakeProfitPoints * _Point, _Digits);
+         double price = SymbolInfoDouble(Symbol(), SYMBOL_BID); // Sell at Bid price
+         ulong ticket = trade.Sell(TradeVolume, _Symbol, price, stopLoss, takeProfit);
+         if(ticket > 0)
+            Print("Sell order opened at ", SymbolInfoDouble(_Symbol, SYMBOL_BID), " with RSI ", rsiValue);
+         else
+            Print("Error opening sell order: ", trade.ResultRetcodeDescription());
+        }
      }
+//--- Check for buy condition
+   else
+      if(rsiValue < OversoldLevel)
+        {
+         //--- Check if there are any open sell positions
+         if(PositionsTotal() > 0)
+           {
+            for(int i = PositionsTotal() - 1; i >= 0; i--)
+              {
+               ulong ticket = PositionGetTicket(i);
+               if(PositionSelectByTicket(ticket))
+                 {
+                  if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+                    {
+                     //--- Close the sell position
+                     trade.PositionClose(ticket);
+                     Print("Sell position closed due to RSI oversold condition.");
+                    }
+                 }
+              }
+           }
 
-//--- variables to store RSI values
-   double rsi_values[];
-
-//--- copy RSI values to the array (get the last 2 values)
-   if(CopyBuffer(rsi_handle, 0, 1, 2, rsi_values) <= 0) // Copy 2 values starting from bar 1 (current bar is 0)
-     {
-      Print("Failed to copy RSI buffer. Error code: ", GetLastError());
-      return;
-     }
-
-   // rsi_values[0] is the RSI value of the previous completed bar
-   // rsi_values[1] is the RSI value of the current (incomplete) bar - be cautious using this for signals
-
-   double current_rsi = rsi_values[0]; // Use the RSI of the last completed bar for signal
-
-//--- trading logic
-   // Buy signal: RSI crosses below the buy level
-   // We check if the previous bar's RSI was above or equal to the level
-   // and the current bar's RSI is below the level.
-   if(rsi_values[1] >= InpLevelBuy && current_rsi < InpLevelBuy)
-     {
-      // Check if we don't have any open buy positions with the same magic number
-      if (!HasOpenPosition(ORDER_TYPE_BUY, InpMagic))
-      {
-          // Send a buy order
-          MqlTradeRequest  request = {};
-          MqlTradeResult  result = {};
-
-          request.action = TRADE_ACTION_DEAL;
-          request.symbol = Symbol();
-          request.volume = InpLotSize;
-          request.type = ORDER_TYPE_BUY;
-          request.price = SymbolInfoDouble(Symbol(), SYMBOL_ASK); // Buy at Ask price
-          request.deviation = 10; // Allowable price deviation in points
-          request.magic = InpMagic;
-          request.comment = "RSI Buy Signal";
-
-          // Optional: Set Stop Loss and Take Profit
-          // request.sl = NormalizeDouble(request.price - 100 * _Point, _Digits); // Example SL (100 points below)
-          // request.tp = NormalizeDouble(request.price + 200 * _Point, _Digits); // Example TP (200 points above)
-
-          if(OrderSend(request, result))
-            {
-             PrintFormat("Buy order sent. Result: %d", result.retcode);
-            }
-          else
-            {
-             PrintFormat("Failed to send buy order. Error: %d", GetLastError());
-            }
-      }
-     }
-
-   // Sell signal: RSI crosses above the sell level
-   // We check if the previous bar's RSI was below or equal to the level
-   // and the current bar's RSI is above the level.
-   if(rsi_values[1] <= InpLevelSell && current_rsi > InpLevelSell)
-     {
-       // Check if we don't have any open sell positions with the same magic number
-       if (!HasOpenPosition(ORDER_TYPE_SELL, InpMagic))
-       {
-          // Send a sell order
-          MqlTradeRequest  request = {};
-          MqlTradeResult  result = {};
-
-          request.action = TRADE_ACTION_DEAL;
-          request.symbol = Symbol();
-          request.volume = InpLotSize;
-          request.type = ORDER_TYPE_SELL;
-          request.price = SymbolInfoDouble(Symbol(), SYMBOL_BID); // Sell at Bid price
-          request.deviation = 10; // Allowable price deviation in points
-          request.magic = InpMagic;
-          request.comment = "RSI Sell Signal";
-
-          // Optional: Set Stop Loss and Take Profit
-          // request.sl = NormalizeDouble(request.price + 100 * _Point, _Digits); // Example SL (100 points above)
-          // request.tp = NormalizeDouble(request.price - 200 * _Point, _Digits); // Example TP (200 points below)
-
-          if(OrderSend(request, result))
-            {
-             PrintFormat("Sell order sent. Result: %d", result.retcode);
-            }
-          else
-            {
-             PrintFormat("Failed to send sell order. Error: %d", GetLastError());
-            }
-       }
-     }
+         //--- Open a buy position if no buy position is open
+         if(PositionsTotal() == 0 || !IsExistingPosition(POSITION_TYPE_BUY))
+           {
+            double stopLoss = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - StopLossPoints * _Point, _Digits);
+            double takeProfit = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_ASK) + TakeProfitPoints * _Point, _Digits);
+            double price = SymbolInfoDouble(Symbol(), SYMBOL_ASK); // Buy at Ask price
+            ulong ticket = trade.Buy(TradeVolume, _Symbol, price, stopLoss, takeProfit);
+            if(ticket > 0)
+               Print("Buy order opened at ", SymbolInfoDouble(_Symbol, SYMBOL_ASK), " with RSI ", rsiValue);
+            else
+               Print("Error opening buy order: ", trade.ResultRetcodeDescription());
+           }
+        }
   }
 
 //+------------------------------------------------------------------+
-//| Custom function to check for open positions with a specific type |
-//| and magic number                                                 |
+//| Function to check if a position of a certain type exists        |
 //+------------------------------------------------------------------+
-bool HasOpenPosition(ENUM_ORDER_TYPE type, int magic)
-{
-    for(int i = 0; i < PositionsTotal(); i++)
-    {
-        ulong position_ticket = PositionGetTicket(i);
-        if(position_ticket > 0)
+bool IsExistingPosition(ENUM_POSITION_TYPE type)
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong ticket = PositionGetTicket(i);
+      if(PositionSelectByTicket(ticket))
         {
-            if(PositionGetString(POSITION_SYMBOL) == Symbol() &&
-               PositionGetInteger(POSITION_MAGIC) == magic &&
-               PositionGetInteger(POSITION_TYPE) == type)
-            {
-                return true; // Found an open position of the specified type and magic number
-            }
+         if(PositionGetInteger(POSITION_TYPE) == type)
+            return(true);
         }
-    }
-    return false; // No open position of the specified type and magic number found
-}
-
+     }
+   return(false);
+  }
+//+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
