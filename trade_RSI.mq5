@@ -15,8 +15,6 @@ input int RSIPeriod = 14;       // Period for RSI calculation
 input int OverboughtLevel = 70; // RSI level to consider as overbought
 input int OversoldLevel = 30;   // RSI level to consider as oversold
 input double TradeVolume = 0.01; // Trade volume in lots
-input int StopLossPoints = 50;  // Stop Loss in points
-input int TakeProfitPoints = 100;// Take Profit in points
 input int MagicNumber = 12345;  // Magic number for the EA
 
 //--- Global instance of the trade class
@@ -75,10 +73,8 @@ void OnTick()
       //--- Open a sell position if no sell position is open
       if(PositionsTotal() == 0 || !IsExistingPosition(POSITION_TYPE_SELL))
         {
-         double stopLoss = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_BID) + StopLossPoints * _Point, _Digits);
-         double takeProfit = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_BID) - TakeProfitPoints * _Point, _Digits);
          double price = SymbolInfoDouble(Symbol(), SYMBOL_BID); // Sell at Bid price
-         ulong ticket = trade.Sell(TradeVolume, _Symbol, price, stopLoss, takeProfit);
+         ulong ticket = trade.Sell(TradeVolume, _Symbol, price);
          if(ticket > 0)
             Print("Sell order opened at ", SymbolInfoDouble(_Symbol, SYMBOL_BID), " with RSI ", rsiValue);
          else
@@ -110,10 +106,8 @@ void OnTick()
          //--- Open a buy position if no buy position is open
          if(PositionsTotal() == 0 || !IsExistingPosition(POSITION_TYPE_BUY))
            {
-            double stopLoss = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_ASK) - StopLossPoints * _Point, _Digits);
-            double takeProfit = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_ASK) + TakeProfitPoints * _Point, _Digits);
             double price = SymbolInfoDouble(Symbol(), SYMBOL_ASK); // Buy at Ask price
-            ulong ticket = trade.Buy(TradeVolume, _Symbol, price, stopLoss, takeProfit);
+            ulong ticket = trade.Buy(TradeVolume, _Symbol, price);
             if(ticket > 0)
                Print("Buy order opened at ", SymbolInfoDouble(_Symbol, SYMBOL_ASK), " with RSI ", rsiValue);
             else
