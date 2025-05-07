@@ -65,7 +65,7 @@ void OnTick()
      {
       // If CopyBuffer fails for the last completed bar, it might be due to insufficient history
       // or other issues. Check GetLastError().
-      if(GetLastError() != ERR_HISTORY_NOT_FOUND) // Ignore "no history" error, it might resolve on next tick
+      if(GetLastError() != ERR_NO_HISTORY) // Ignore "no history" error, it might resolve on next tick
       {
          Print("Failed to copy RSI buffer. Error code: ", GetLastError());
       }
