@@ -94,8 +94,8 @@ void OnTick()
       if (!HasOpenPosition(ORDER_TYPE_BUY, InpMagic))
       {
           // Send a buy order
-          TradeRequest request = {};
-          TradeResult result = {};
+          MqlTradeRequest request = {};
+          MqlTradeResult result = {};
 
           request.action = TRADE_ACTION_DEAL;
           request.symbol = Symbol();
@@ -131,8 +131,8 @@ void OnTick()
        if (!HasOpenPosition(ORDER_TYPE_SELL, InpMagic))
        {
           // Send a sell order
-          TradeRequest request = {};
-          TradeResult result = {};
+          MqlTradeRequest request = {};
+          MqlTradeResult result = {};
 
           request.action = TRADE_ACTION_DEAL;
           request.symbol = Symbol();
@@ -183,8 +183,8 @@ void OnTick()
                         // Close signal: RSI crosses above the sell level (previous bar <= level, current bar > level)
                         if(rsi_previous_bar <= InpLevelSell && rsi_current_bar > InpLevelSell)
                         {
-                            TradeRequest request = {};
-                            TradeResult result = {};
+                            MqlTradeRequest request = {};
+                            MqlTradeResult result = {};
 
                             request.action = TRADE_ACTION_DEAL;
                             request.position = position_ticket; // Specify the position to close
@@ -211,8 +211,8 @@ void OnTick()
                         // Close signal: RSI crosses below the buy level (previous bar >= level, current bar < level)
                         if(rsi_previous_bar >= InpLevelBuy && rsi_current_bar < InpLevelBuy)
                         {
-                            TradeRequest request = {};
-                            TradeResult result = {};
+                            MqlTradeRequest request = {};
+                            MqlTradeResult result = {};
 
                             request.action = TRADE_ACTION_DEAL;
                             request.position = position_ticket; // Specify the position to close
