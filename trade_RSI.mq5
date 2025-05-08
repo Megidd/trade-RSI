@@ -15,8 +15,8 @@ input int      RSI_Period          = 14;       // RSI Period
 input double   RSI_UpperLevel      = 70;       // RSI Upper Level (Overbought)
 input double   RSI_LowerLevel      = 30;       // RSI Lower Level (Oversold)
 input double   LotSize             = 0.1;      // Trading lot size
-input int      StopLoss            = 100;      // Stop Loss in points
-input int      TakeProfit          = 200;      // Take Profit in points
+input int      StopLoss            = 100;      // Stop Loss in points (0 = disabled)
+input int      TakeProfit          = 200;      // Take Profit in points (0 = disabled)
 input int      Magic               = 123456;   // EA Magic Number
 input bool     CloseOnOppositeSignal = true;   // Close position on opposite signal
 
