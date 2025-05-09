@@ -5,7 +5,6 @@
 //| Description: Expert Advisor that trades based on RSI indicator     |
 //| - Buy when RSI goes below 30 (oversold)                            |
 //| - Sell when RSI goes above 70 (overbought)                         |
-//| - Avoids trading during important news events                      |
 //+------------------------------------------------------------------+
 #property copyright "Claude 3.7"
 #property version   "1.00"
@@ -20,13 +19,6 @@ input int      StopLoss            = 100;      // Stop Loss in points (0 = disab
 input int      TakeProfit          = 200;      // Take Profit in points (0 = disabled)
 input int      Magic               = 123456;   // EA Magic Number
 input bool     CloseOnOppositeSignal = true;   // Close position on opposite signal
-
-// News filter parameters
-input int      MinutesBeforeNews   = 60;       // Minutes to avoid trading before news
-input int      MinutesAfterNews    = 30;       // Minutes to avoid trading after news
-input bool     FilterLowImpact     = false;    // Filter low impact news
-input bool     FilterMediumImpact  = true;     // Filter medium impact news
-input bool     FilterHighImpact    = true;     // Filter high impact news
 
 // Global variables
 int rsiHandle;       // RSI indicator handle
@@ -58,44 +50,6 @@ int OnInit()
   }
 
 //+------------------------------------------------------------------+
-//| Check if there are important news events nearby                  |
-//+------------------------------------------------------------------+
-bool IsNewsTime()
-  {
-   MqlCalendarValue values[];
-   datetime currentTime = TimeCurrent();
-   datetime fromTime = currentTime - MinutesBeforeNews * 60;
-   datetime toTime = currentTime + MinutesAfterNews * 60;
-   
-   // Get calendar values for the specified time range
-   if(CalendarValueHistory(values, fromTime, toTime))
-     {
-      int total = ArraySize(values);
-      
-      for(int i = 0; i < total; i++)
-        {
-         // Get event importance
-         MqlCalendarEvent event;
-         if(!CalendarEventById(values[i].event_id, event))
-            continue;
-            
-         ENUM_CALENDAR_EVENT_IMPORTANCE importance = 
-            (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance;
-            
-         // Check if we should filter this event based on importance
-         if((importance == CALENDAR_IMPORTANCE_LOW && FilterLowImpact) ||
-            (importance == CALENDAR_IMPORTANCE_MODERATE && FilterMediumImpact) ||
-            (importance == CALENDAR_IMPORTANCE_HIGH && FilterHighImpact))
-           {
-            return true; // News time detected
-           }
-        }
-     }
-   
-   return false; // No relevant news events found
-  }
-
-//+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
@@ -110,13 +64,6 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
   {
-// Check for news events first
-   if(IsNewsTime())
-     {
-      Print("News time - avoiding trades");
-      return;
-     }
-
 // Update indicator values
    if(CopyBuffer(rsiHandle, 0, 0, barCount, rsiBuffer) < barCount)
      {
