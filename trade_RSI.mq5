@@ -1,14 +1,17 @@
 //+------------------------------------------------------------------+
-//|                                                  RSI_Trader_EA.mq5 |
+//|                                       RSI_Trader_EA_with_News.mq5 |
 //|                                            Developed by Claude 3.7 |
 //|                                                                    |
 //| Description: Expert Advisor that trades based on RSI indicator     |
 //| - Buy when RSI goes below 30 (oversold)                            |
 //| - Sell when RSI goes above 70 (overbought)                         |
+//| - Avoids trading during major economic news events                 |
 //+------------------------------------------------------------------+
 #property copyright "Claude 3.7"
-#property version   "1.00"
+#property version   "1.10"
 #property strict
+
+#include <Tools\DateTime.mqh>  // Required for DateTime operations
 
 // Input parameters
 input int      RSI_Period          = 14;       // RSI Period
@@ -20,10 +23,18 @@ input int      TakeProfit          = 200;      // Take Profit in points (0 = dis
 input int      Magic               = 123456;   // EA Magic Number
 input bool     CloseOnOppositeSignal = true;   // Close position on opposite signal
 
+// News filter parameters
+input bool     AvoidNews           = true;     // Avoid trading during news
+input int      MinutesBeforeNews   = 60;       // Minutes to stop trading before news
+input int      MinutesAfterNews    = 30;       // Minutes to resume trading after news
+input bool     HighImpactOnly      = true;     // Filter only high impact news
+input bool     CloseBeforeNews     = false;    // Close positions before high impact news
+
 // Global variables
 int rsiHandle;       // RSI indicator handle
 double rsiBuffer[];  // RSI values buffer
 int barCount;        // Number of bars to calculate
+MqlCalendarValue calendarValues[]; // Calendar events array
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -46,6 +57,8 @@ int OnInit()
 // Initialize variables
    barCount = 3; // We need a few bars to analyze trends
 
+   Print("RSI Trader with News Filter initialized.");
+
    return(INIT_SUCCEEDED);
   }
 
@@ -57,6 +70,8 @@ void OnDeinit(const int reason)
 // Release indicator handle
    if(rsiHandle != INVALID_HANDLE)
       IndicatorRelease(rsiHandle);
+
+   Print("RSI Trader with News Filter deinitialized.");
   }
 
 //+------------------------------------------------------------------+
@@ -70,6 +85,25 @@ void OnTick()
       Print("Error copying RSI buffer");
       return;
      }
+
+// Check for news events if news filter is enabled
+   if(AvoidNews && IsNewsTime())
+     {
+      // Check if we need to close positions before news
+      if(CloseBeforeNews)
+        {
+         CloseAllPositions(POSITION_TYPE_BUY);
+         CloseAllPositions(POSITION_TYPE_SELL);
+         Comment("News event approaching. Positions closed. Trading paused.");
+        }
+      else
+        {
+         Comment("News event in progress. Trading paused.");
+        }
+      return; // Skip trading logic during news events
+     }
+
+   Comment(""); // Clear comment
 
 // Check if we already have a position
    bool haveLongPosition = false;
@@ -128,6 +162,75 @@ void OnTick()
 
    if(sellSignal && !haveShortPosition)
       OpenSellPosition();
+  }
+
+//+------------------------------------------------------------------+
+//| Function to check if there are news events                       |
+//+------------------------------------------------------------------+
+bool IsNewsTime()
+  {
+   datetime currentTime = TimeCurrent();
+
+// Calculate the time window for news check
+   datetime startCheckTime = currentTime - MinutesBeforeNews * 60;
+   datetime endCheckTime = currentTime + MinutesAfterNews * 60;
+
+// We need to check one day back and a few days forward to catch all possible news
+   datetime fromDate = TimeTradeServer() - 24*60*60; // 1 day back
+   datetime toDate = TimeTradeServer() + 7*24*60*60; // 7 days forward
+
+// Get the currency pair currencies
+   string baseCurrency = StringSubstr(_Symbol, 0, 3);
+   string quoteCurrency = StringSubstr(_Symbol, 3, 3);
+
+// Get calendar values
+   if(!CalendarValueHistory(calendarValues, fromDate, toDate))
+     {
+      Print("Failed to get calendar values: ", GetLastError());
+      return false; // If calendar API fails, we continue trading
+     }
+
+// Loop through calendar events
+   int size = ArraySize(calendarValues);
+   for(int i = 0; i < size; i++)
+     {
+      // Get event details
+      MqlCalendarEvent event;
+      MqlCalendarCountry country;
+
+      if(!CalendarEventById(calendarValues[i].event_id, event))
+         continue;
+
+      if(!CalendarCountryById(event.country_id, country))
+         continue;
+
+      // Check if event is related to our currency pair
+      string countryCurrency = country.currency;
+      if(countryCurrency != baseCurrency && countryCurrency != quoteCurrency)
+         continue;
+
+      // Check importance
+      ENUM_CALENDAR_EVENT_IMPORTANCE importance = (ENUM_CALENDAR_EVENT_IMPORTANCE)event.importance;
+
+      // If HighImpactOnly is true, filter out medium and low impact news
+      if(HighImpactOnly && importance != CALENDAR_IMPORTANCE_HIGH)
+         continue;
+
+      // Check if we're in the news time window
+      datetime eventTime = calendarValues[i].time;
+      if(eventTime >= startCheckTime && eventTime <= endCheckTime)
+        {
+         // Format the event info for logging
+         string eventName = event.name;
+         string eventCurrency = country.currency;
+         string eventTimeStr = TimeToString(eventTime, TIME_DATE|TIME_MINUTES);
+
+         Print("News filter: Found ", eventCurrency, " event '", eventName, "' at ", eventTimeStr);
+         return true; // We're in a news time window
+        }
+     }
+
+   return false; // No relevant news found
   }
 
 //+------------------------------------------------------------------+
@@ -256,4 +359,5 @@ void CloseAllPositions(ENUM_POSITION_TYPE posType)
          Print("Failed to close position: ", GetLastError());
      }
   }
+//+------------------------------------------------------------------+
 //+------------------------------------------------------------------+
